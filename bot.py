@@ -35,9 +35,10 @@ class WebServer(BaseHTTPRequestHandler):
 
 def run_web_server():
     server = HTTPServer(('0.0.0.0', 10000), WebServer)
-    server.serve_forever()
+    server.servedef get_market_news():_forever()
 
-def get_market_news():
+url = f"https://finnhub.io{FINNHUB_KEY}"
+
     url = f"https://finnhub.io{FINNHUB_KEY}"
 
     try:
