@@ -110,7 +110,7 @@ def main_loop():
 if __name__ == "__main__":
     # Запускаем сайт-заглушку для Render в отдельном потоке
     Thread(target=run_web_server, daemon=True).start()
-    time.sleep(3)
+time.sleep(3)
 
     # ТЕСТОВАЯ СТРОКА ДЛЯ ПРОВЕРКИ СВЯЗИ
     try:
