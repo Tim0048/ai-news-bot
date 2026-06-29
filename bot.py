@@ -110,7 +110,8 @@ def main_loop():
 if __name__ == "__main__":
     # Запускаем сайт-заглушку для Render в отдельном потоке
     Thread(target=run_web_server, daemon=True).start()
-    
+     time.sleep(3)
+
     # ТЕСТОВАЯ СТРОКА ДЛЯ ПРОВЕРКИ СВЯЗИ
     try:
         bot.send_message(MY_CHAT_ID, "🚀 Проверка связи! Облачный сервер Render успешно авторизовал токен. Бот активен и готов присылать отчёты.")
