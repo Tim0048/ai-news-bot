@@ -83,7 +83,7 @@ if __name__ == "__main__":
     Thread(target=run_web_server, daemon=True).start()
 
     # ТЕСТОВАЯ СТРОКА ДЛЯ ПРОВЕРКИ СВЯЗИ:
-    bot.send_message(MY_CHAT_ID, "🚀 Проверка связи! Облачный сервер Render и Telegram успешно соединены. Бот на посту и готов к торгам!")
+    bot.send_message(MY_CHAT_ID, "🚀 Проверка")
 
     main_loop()
 
