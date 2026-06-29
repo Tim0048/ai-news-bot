@@ -29,7 +29,7 @@ class WebServer(BaseHTTPRequestHandler):
         self.send_response(200)
         self.wfile.write(b"AI Stock Bot is running 24/7 OK")
         self.end_headers()
-        self.wfile.write(b"AI Stock Bot is running 24/7 ✅")
+        self.wfile.write(b"AI Stock Bot is running 24/7")
 
     def do_HEAD(self):
         self.send_response(200)
