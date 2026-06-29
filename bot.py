@@ -38,6 +38,7 @@ def run_web_server():
 
 def get_market_news():
     url = f"https://finnhub.io{FINNHUB_KEY}"
+
     try:
         response = requests.get(url, timeout=10)
         if response.status_code == 200: return response.json()
