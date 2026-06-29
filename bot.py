@@ -18,12 +18,19 @@ ai_model = genai.GenerativeModel('gemini-1.5-flash')
 processed_news_ids = set()
 
 # Мини веб-сервер для обхода ограничений Render
+# Живой веб-сервер, чтобы Render не закрывал бесплатный сервис
 class WebServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write(b"Bot is running alive!")
+        self.wfile.write(b"AI Bot is working 24/7!")
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+
 
 def run_web_server():
     server = HTTPServer(('0.0.0.0', 10000), WebServer)
