@@ -6,7 +6,7 @@ from threading import Thread
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # === ВАШИ КЛЮЧИ ===
-TG_TOKEN = "8799537658:AAEpyC45IAgQFXtIMysMfr0JeKDEN38Xgag"
+8799537658:AAEpyC45IAgQFxtIMysMfR0JeKDEN38Xgag
 GEMINI_KEY = "AQ.Ab8RN6JLCuL6hnLT5XD7_XSA8G2Z8sXZzms6IZErVLv43D5Bbw"
 MY_CHAT_ID = "8560334915"
 FINNHUB_KEY = "ct90f91r01qhk69v66ogct90f91r01qhk69v66p0"
