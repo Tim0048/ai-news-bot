@@ -80,6 +80,10 @@ def main_loop():
         time.sleep(300)
 
 if __name__ == "__main__":
-    # Запуск веб-сервера в отдельном потоке
     Thread(target=run_web_server, daemon=True).start()
+
+    # ТЕСТОВАЯ СТРОКА ДЛЯ ПРОВЕРКИ СВЯЗИ:
+    bot.send_message(MY_CHAT_ID, "🚀 Проверка связи! Облачный сервер Render и Telegram успешно соединены. Бот на посту и готов к торгам!")
+
     main_loop()
+
