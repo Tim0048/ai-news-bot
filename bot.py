@@ -5,8 +5,11 @@ import google.generativeai as genai
 import os
 from threading import Thread
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from collections import deque
+from datetime import datetime, timedelta
+import logging
 
-# ====================== ВАШИ КЛЮЧИ ======================
+# ====================== ТВОИ КЛЮЧИ ======================
 TG_TOKEN = "8799537658:AAEpyC45IAgQFxtIMysMfR0JeKDEN38Xgag"
 GEMINI_KEY = "AQ.Ab8RN6JLCuL6hnLT5XD7_XSA8G2Z8sXZzms6IZErVLv43D5Bbw"
 FINNHUB_KEY = "ct90f91r01qhk69v66ogct90f91r01qhk69v66p0"
@@ -14,117 +17,159 @@ MY_CHAT_ID = 8560334915
 
 WATCHLIST = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "HOOD", "CCL", "SPCX"]
 
+# Настройки
+CHECK_INTERVAL = 180          # секунд (3 минуты)
+MAX_NEWS_AGE_HOURS = 2        # игнорировать новости старше
+DAILY_REPORT_HOUR = 8         # час ежедневного отчёта (по МСК)
+
+# Логирование
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.FileHandler("bot.log"), logging.StreamHandler()]
+)
+
 # Инициализация
 bot = telebot.TeleBot(TG_TOKEN)
 genai.configure(api_key=GEMINI_KEY)
 ai_model = genai.GenerativeModel('gemini-1.5-flash')
 
-processed_news_ids = set()
-MAX_PROCESSED = 500
+processed_news = deque(maxlen=3000)
+last_min_id = 0
+last_daily_report = None
 
 
 class WebServer(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Отвечаем кодом 200 на пинг cron-job.org, чтобы Render не усыплял бота
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
         self.wfile.write(b"AI Stock Bot is running 24/7 OK")
 
-    def do_HEAD(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), WebServer)
-    print(f"🌐 Мини-веб-сервер запущен на порту {port}")
+    logging.info(f"🌐 Веб-сервер запущен на порту {port}")
     server.serve_forever()
 
 
-def get_market_news():
-    url = f"https://finnhub.io{FINNHUB_KEY}"
+def is_news_too_old(news):
+    try:
+        dt = datetime.fromtimestamp(news.get("datetime", 0))
+        return datetime.now() - dt > timedelta(hours=MAX_NEWS_AGE_HOURS)
+    except:
+        return False
+
+
+def get_market_news(min_id: int = 0):
+    url = f"https://finnhub.io/api/v1/news?category=general&token={FINNHUB_KEY}&minId={min_id}"
     try:
         response = requests.get(url, timeout=15)
-        if response.status_code == 200:
-            return response.json()
+        response.raise_for_status()
+        return response.json()
     except Exception as e:
-        print(f"❌ Ошибка Finnhub: {e}")
-    return []
+        logging.error(f"Finnhub error: {e}")
+        return []
 
 
 def analyze_with_gemini(headline: str, summary: str) -> str:
     prompt = f"""
-    Ты опытный финансовый аналитик. 
-    Проанализируй новость и определи, влияет ли она НАПРЯМУЮ на компании: {', '.join(WATCHLIST)}.
-    Заголовок: {headline}
-    Описание: {summary}
-    Если НЕ влияет, ответь строго одним словом: IGNORE.
-    Если влияет, дай ответ СТРОГО в формате:
-    [ТИКЕР] Оценка: [число от -5 до +5]
-    Краткое объяснение: [1-2 предложения на русском языке]
-    """
+Ты опытный финансовый аналитик. Проанализируй влияние новости на компании: {', '.join(WATCHLIST)}.
+
+Заголовок: {headline}
+Описание: {summary}
+
+Ответь **строго** по правилам:
+- Если прямого влияния нет → IGNORE
+- Если есть влияние → 
+[ТИКЕР] Оценка: [от -5 до +5]
+Краткое объяснение: [1-2 предложения на русском]
+"""
     try:
-        response = ai_model.generate_content(prompt, generation_config={"temperature": 0.3})
+        response = ai_model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.25, "max_output_tokens": 400}
+        )
         return response.text.strip()
     except Exception as e:
-        print(f"❌ Ошибка ИИ: {e}")
+        logging.error(f"Gemini error: {e}")
         return "IGNORE"
 
 
-def main_loop():
-    print("🚀 ИИ-Бот начинает непрерывный мониторинг акций...")
+def send_daily_report():
+    global last_daily_report
+    now = datetime.now()
     
-    # Кэшируем текущую ленту при старте, чтобы избежать спама старыми новостями
-    initial_news = get_market_news()
-    for news in initial_news[:25]:
-        if news.get("id"):
-            processed_news_ids.add(news.get("id"))
-            
+    if last_daily_report and (now - last_daily_report).days < 1:
+        return
+    
+    if now.hour == DAILY_REPORT_HOUR:
+        try:
+            message = (
+                "🌅 **Ежедневный отчёт ИИ-Бота**\n\n"
+                f"📊 Мониторим: {', '.join(WATCHLIST)}\n"
+                f"🕒 Время: {now.strftime('%d.%m.%Y %H:%M')}\n\n"
+                "Бот работает в штатном режиме."
+            )
+            bot.send_message(MY_CHAT_ID, message, parse_mode="Markdown")
+            last_daily_report = now
+            logging.info("Ежедневный отчёт отправлен")
+        except Exception as e:
+            logging.error(f"Ошибка ежедневного отчёта: {e}")
+
+
+def main_loop():
+    global last_min_id
+    logging.info("🚀 ИИ-Бот запущен и готов к работе")
+
     while True:
-        news_list = get_market_news()
-        for news in news_list[:12]:
-            news_id = news.get("id")
-            if not news_id or news_id in processed_news_ids:
-                continue
-                
-            headline = news.get("headline", "")
-            summary = news.get("summary", "")
-            news_url = news.get("url", "")
+        try:
+            send_daily_report()
             
-            ai_verdict = analyze_with_gemini(headline, summary)
+            news_list = get_market_news(last_min_id)
             
-            if "IGNORE" not in ai_verdict:
-                emoji = "🟢" if any(f"+{i}" in ai_verdict for i in range(1, 6)) else "🔴"
-                if "Оценка: 0" in ai_verdict: 
-                    emoji = "⚪"
-                
-                message_text = (
-                    f"{emoji} **ИИ-АНАЛИЗ РЫНКА**\n\n"
-                    f"📰 **{headline}**\n\n"
-                    f"{ai_verdict}\n\n"
-                    f"🔗 [Источник]({news_url})"
-                )
-                try:
+            for news in news_list:
+                news_id = news.get("id")
+                if not news_id or news_id in processed_news:
+                    continue
+
+                if is_news_too_old(news):
+                    continue
+
+                headline = news.get("headline", "")
+                summary = news.get("summary", "")
+                news_url = news.get("url", "")
+
+                ai_verdict = analyze_with_gemini(headline, summary)
+
+                if "IGNORE" not in ai_verdict.upper():
+                    if any(f"+{i}" in ai_verdict for i in range(1, 6)):
+                        emoji = "🟢"
+                    elif any(f"-{i}" in ai_verdict for i in range(1, 6)):
+                        emoji = "🔴"
+                    else:
+                        emoji = "⚪"
+
+                    message_text = (
+                        f"{emoji} **ИИ-АНАЛИЗ РЫНКА**\n\n"
+                        f"📰 **{headline}**\n\n"
+                        f"{ai_verdict}\n\n"
+                        f"🔗 [Источник]({news_url})"
+                    )
+
                     bot.send_message(MY_CHAT_ID, message_text, parse_mode="Markdown")
-                except Exception as e:
-                    print(f"❌ Ошибка отправки: {e}")
-            
-            processed_news_ids.add(news_id)
-            
-            if len(processed_news_ids) > MAX_PROCESSED:
-                processed_news_ids.clear()
-                
-            time.sleep(1.5)
-            
-        time.sleep(300)
+                    logging.info(f"Отправлен сигнал: {headline[:60]}...")
+
+                processed_news.append(news_id)
+                last_min_id = max(last_min_id, news_id)
+
+        except Exception as e:
+            logging.error(f"Ошибка в главном цикле: {e}")
+
+        time.sleep(CHECK_INTERVAL)
 
 
 if __name__ == "__main__":
-    # Запуск веб-сервера для удержания активности
     Thread(target=run_web_server, daemon=True).start()
-    
-    # Запуск основного бесконечного цикла
     main_loop()
