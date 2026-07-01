@@ -8,22 +8,24 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from collections import deque
 from datetime import datetime, timedelta
 import logging
+from dotenv import load_dotenv
 
-# ====================== НАСТРОЙКИ ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ ======================
+# Загружаем .env
+load_dotenv()
+
+# ====================== КЛЮЧИ ======================
 TG_TOKEN = os.getenv("TG_TOKEN")
 GEMINI_KEY = os.getenv("GEMINI_KEY")
 FINNHUB_KEY = os.getenv("FINNHUB_KEY")
-MY_CHAT_ID = int(os.getenv("MY_CHAT_ID", 0))
+MY_CHAT_ID = int(os.getenv("MY_CHAT_ID"))
+
+if not all([TG_TOKEN, GEMINI_KEY, FINNHUB_KEY, MY_CHAT_ID]):
+    raise SystemExit("❌ Ошибка: Не все ключи найдены в .env файле!")
 
 WATCHLIST = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "HOOD", "CCL", "SPCX"]
 
 CHECK_INTERVAL = 180
 MAX_NEWS_AGE_HOURS = 2
-DAILY_REPORT_HOUR = 8
-
-# Проверка ключей при запуске
-if not all([TG_TOKEN, GEMINI_KEY, FINNHUB_KEY, MY_CHAT_ID]):
-    raise SystemExit("❌ Ошибка: Не все необходимые переменные окружения заданы!")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,11 +35,11 @@ logging.basicConfig(
 
 bot = telebot.TeleBot(TG_TOKEN)
 
-# Gemini
+# Инициализация Gemini
 try:
     genai.configure(api_key=GEMINI_KEY)
     ai_model = genai.GenerativeModel('gemini-1.5-flash')
-    logging.info("✅ Gemini инициализирован")
+    logging.info("✅ Gemini успешно инициализирован")
 except Exception as e:
     logging.error(f"Gemini init error: {e}")
     ai_model = None
@@ -62,9 +64,6 @@ def get_market_news(min_id: int = 0):
     url = f"https://finnhub.io/api/v1/news?category=general&token={FINNHUB_KEY}&minId={min_id}"
     try:
         response = requests.get(url, timeout=20)
-        if response.status_code == 401:
-            logging.error("❌ Finnhub: Неверный ключ")
-            return []
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -83,10 +82,21 @@ def is_news_too_old(news):
 def analyze_with_gemini(headline: str, summary: str) -> str:
     if not ai_model:
         return "IGNORE"
-    prompt = f"Заголовок: {headline}\nОписание: {summary}\nВлияет ли на {', '.join(WATCHLIST)}? Ответь кратко."
+    prompt = f"""
+Ты опытный финансовый аналитик.
+Проанализируй новость на влияние на компании: {', '.join(WATCHLIST)}.
+
+Заголовок: {headline}
+Описание: {summary}
+
+Если не влияет напрямую — ответь только словом IGNORE.
+Если влияет — ответь в формате:
+[ТИКЕР] Оценка: [число]
+Краткое объяснение: ...
+"""
     try:
-        resp = ai_model.generate_content(prompt, generation_config={"temperature": 0.3})
-        return resp.text.strip()
+        response = ai_model.generate_content(prompt, generation_config={"temperature": 0.3})
+        return response.text.strip()
     except Exception as e:
         logging.error(f"Gemini error: {e}")
         return "IGNORE"
@@ -94,7 +104,7 @@ def analyze_with_gemini(headline: str, summary: str) -> str:
 
 def main_loop():
     global last_min_id
-    logging.info("🚀 ИИ-Бот запущен (без секретов в коде)")
+    logging.info("🚀 ИИ-Бот запущен")
 
     while True:
         try:
@@ -114,14 +124,15 @@ def main_loop():
 
                 if "IGNORE" not in verdict.upper():
                     emoji = "🟢" if "+" in verdict else "🔴"
-                    msg = f"{emoji} **ИИ-АНАЛИЗ**\n\n📰 {headline}\n\n{verdict}\n\n🔗 [Источник]({news_url})"
+                    msg = f"{emoji} **ИИ-АНАЛИЗ РЫНКА**\n\n📰 {headline}\n\n{verdict}\n\n🔗 [Источник]({news_url})"
                     bot.send_message(MY_CHAT_ID, msg, parse_mode="Markdown")
+                    logging.info(f"Сигнал отправлен: {headline[:60]}...")
 
                 processed_news.append(news_id)
                 last_min_id = max(last_min_id, news_id)
 
         except Exception as e:
-            logging.error(f"Ошибка: {e}")
+            logging.error(f"Ошибка в цикле: {e}")
 
         time.sleep(CHECK_INTERVAL)
 
