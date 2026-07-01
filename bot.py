@@ -1,4 +1,3 @@
-
 import time
 import requests
 import telebot
@@ -7,8 +6,8 @@ import os
 from threading import Thread
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# ====================== ТВОИ КЛЮЧИ ======================
-TG_TOKEN = "8799537658:AAEpyC45IAgQFxtIMysMfR0JeKDEN38Xgag"   # ← На 100% точный токен по скриншоту!
+# ====================== ВАШИ КЛЮЧИ ======================
+TG_TOKEN = "8799537658:AAEpyC45IAgQFxtIMysMfR0JeKDEN38Xgag"
 GEMINI_KEY = "AQ.Ab8RN6JLCuL6hnLT5XD7_XSA8G2Z8sXZzms6IZErVLv43D5Bbw"
 FINNHUB_KEY = "ct90f91r01qhk69v66ogct90f91r01qhk69v66p0"
 MY_CHAT_ID = 8560334915
@@ -26,10 +25,11 @@ MAX_PROCESSED = 500
 
 class WebServer(BaseHTTPRequestHandler):
     def do_GET(self):
+        # Отвечаем кодом 200 на пинг cron-job.org, чтобы Render не усыплял бота
         self.send_response(200)
-        self.wfile.write(b"AI Stock Bot is running 24/7 OK")
+        self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write(b"AI Stock Bot is running 24/7")
+        self.wfile.write(b"AI Stock Bot is running 24/7 OK")
 
     def do_HEAD(self):
         self.send_response(200)
@@ -48,25 +48,24 @@ def get_market_news():
     url = f"https://finnhub.io{FINNHUB_KEY}"
     try:
         response = requests.get(url, timeout=15)
-        response.raise_for_status()
-        return response.json()
+        if response.status_code == 200:
+            return response.json()
     except Exception as e:
         print(f"❌ Ошибка Finnhub: {e}")
-        return []
+    return []
 
 
 def analyze_with_gemini(headline: str, summary: str) -> str:
     prompt = f"""
-Ты опытный financial analyst. 
-Проанализируй новость и определи, влияет ли она НАПРЯМУЮ на компании: {', '.join(WATCHLIST)}.
-Заголовок: {headline}
-Описание: {summary}
-
-Если НЕ влияет — ответь строго одним словом: IGNORE.
-Если влияет — дай ответ СТРОГО в формате:
-[ТИКЕР] Оценка: [число от -5 до +5]
-Краткое объяснение: [1-2 предложения на русском языке]
-"""
+    Ты опытный финансовый аналитик. 
+    Проанализируй новость и определи, влияет ли она НАПРЯМУЮ на компании: {', '.join(WATCHLIST)}.
+    Заголовок: {headline}
+    Описание: {summary}
+    Если НЕ влияет, ответь строго одним словом: IGNORE.
+    Если влияет, дай ответ СТРОГО в формате:
+    [ТИКЕР] Оценка: [число от -5 до +5]
+    Краткое объяснение: [1-2 предложения на русском языке]
+    """
     try:
         response = ai_model.generate_content(prompt, generation_config={"temperature": 0.3})
         return response.text.strip()
@@ -76,8 +75,9 @@ def analyze_with_gemini(headline: str, summary: str) -> str:
 
 
 def main_loop():
-    print("🚀 ИИ-Бот начинает мониторинг акций...")
+    print("🚀 ИИ-Бот начинает непрерывный мониторинг акций...")
     
+    # Кэшируем текущую ленту при старте, чтобы избежать спама старыми новостями
     initial_news = get_market_news()
     for news in initial_news[:25]:
         if news.get("id"):
@@ -97,7 +97,7 @@ def main_loop():
             ai_verdict = analyze_with_gemini(headline, summary)
             
             if "IGNORE" not in ai_verdict:
-                emoji = "🟢" if any(f"+{i}" in ai_verdict for i in range(1,6)) else "🔴"
+                emoji = "🟢" if any(f"+{i}" in ai_verdict for i in range(1, 6)) else "🔴"
                 if "Оценка: 0" in ai_verdict: 
                     emoji = "⚪"
                 
@@ -123,6 +123,8 @@ def main_loop():
 
 
 if __name__ == "__main__":
-    Thread(target=run_web_server, daemon=True).start() 
-        
+    # Запуск веб-сервера для удержания активности
+    Thread(target=run_web_server, daemon=True).start()
+    
+    # Запуск основного бесконечного цикла
     main_loop()
