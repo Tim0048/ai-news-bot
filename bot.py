@@ -124,9 +124,5 @@ def main_loop():
 
 if __name__ == "__main__":
     Thread(target=run_web_server, daemon=True).start() 
-    try:
-        bot.send_message(MY_CHAT_ID, "🚀 Проверка связи! Бот успешно запущен на Render.")
-    except Exception as e:
-        print(f"❌ Ошибка тестовой отправки: {e}")
         
     main_loop()
