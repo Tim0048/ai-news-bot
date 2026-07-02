@@ -15,15 +15,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Простая заглушка для перевода (можно потом заменить на нормальный)
 def translate_text(text: str) -> str:
-    return text  # Пока возвращаем оригинал, чтобы бот не падал
+    return text
 
-# ====================== ЛОГИКА ======================
 RISK_KEYWORDS = [
     "CEO", "смена CEO", "новый CEO", "retire", "resign", "guidance",
     "прогноз", "earnings miss", "weak outlook", "падает на", "обвал",
-    "падение на", "рухнул", "скандал", "расследование"
+    "падение на", "рухнул", "скандал"
 ]
 
 def is_linked_risk_event(text: str) -> bool:
@@ -36,42 +34,29 @@ def is_linked_risk_event(text: str) -> bool:
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Бот запущен и готов ловить падения и скандалы.")
+    await update.message.reply_text("✅ Бот запущен. Ждём скандалы и падения акций.")
 
 
 async def process_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     news = update.message.text.strip()
-    source_link = context.user_data.get('source_link', '#')
-    
     if is_linked_risk_event(news):
-        translated = translate_text(news)
-        context.user_data['original_text'] = news
-        
-        keyboard = [
-            [InlineKeyboardButton("🔍 Проверить оригинал", url=source_link)],
-            [InlineKeyboardButton("🔄 Перевести обратно", callback_data="show_original")]
-        ]
-        
-        message = f"""
-🚨 **ПАДЕНИЕ + ПРИЧИНА**
-
-{translated}
-
-⚠️ Автоперевод. Проверь оригинал.
-        """
-        await update.message.reply_text(message, parse_mode='Markdown', reply_markup=InlineKeyboardMarkup(keyboard))
+        keyboard = [[InlineKeyboardButton("🔄 Показать оригинал", callback_data="show_original")]]
+        await update.message.reply_text(
+            f"🚨 **РИСКОВАЯ НОВОСТЬ**\n\n{news}",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "show_original":
-        original = context.user_data.get('original_text', 'Оригинал не найден.')
-        await query.edit_message_text(f"**Оригинал:**\n\n{original}", parse_mode='Markdown')
+        await query.edit_message_text(f"**Оригинал:**\n\n{query.message.text}")
 
 
 def main():
-    TOKEN = "YOUR_BOT_TOKEN_HERE"
+    TOKEN = "ТОКЕН_СЮДА"   # ← Замени на свой токен от @BotFather
     
     app = Application.builder().token(TOKEN).build()
     
