@@ -8,74 +8,78 @@ from collections import deque
 import logging
 import os
 
-# ====================== КЛЮЧИ ======================
 TG_TOKEN = "8799537658:AAEpyC45IAgQFxtIMysMfR0JeKDEN38Xgag"
 FINNHUB_KEY = "d92oaehr01qpou37een0d92oaehr01qpou37eeng"
 MY_CHAT_ID = 8560334915
 
+# Твои основные тикеры
 WATCHLIST = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "HOOD", "CCL", "SPCX"]
 
 bot = telebot.TeleBot(TG_TOKEN)
-processed_news = deque(maxlen=2000)
+processed_news = deque(maxlen=4000)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
+
+SCANDAL_WORDS = ["scandal", "investigation", "lawsuit", "fine", "fraud", "SEC", "probe", "controversy", "resign", "fired", "recall", "ban", "crisis", "allegation", "indictment", "settlement"]
 
 class KeepAlive(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header("Content-type", "text/plain")
         self.end_headers()
-        self.wfile.write(b"AI Stock Bot is running OK")
+        self.wfile.write(b"OK")
 
 def run_keep_alive():
     port = int(os.environ.get("PORT", 10000))
-    logging.info(f"Запуск keep-alive сервера на порту {port}")
-    server = HTTPServer(('0.0.0.0', port), KeepAlive)
-    server.serve_forever()
+    HTTPServer(('0.0.0.0', port), KeepAlive).serve_forever()
+
+def is_scandal(headline, summary):
+    text = (headline + " " + summary).lower()
+    return any(word in text for word in SCANDAL_WORDS)
 
 def send_grok_analysis():
-    analysis = """🧠 **Анализ от Grok**
+    analysis = """🧠 **Анализ рынка от Grok**
 
-Техсектор позитивен.
-• NVDA +4 (лидер AI)
+Техсектор держится позитивно.
+• NVDA +4
 • AAPL +3
 • TSLA +3
 • MSFT +2
-• AMZN 0
 
-Рекомендация: Держим NVDA, AAPL, TSLA."""
-    try:
-        bot.send_message(MY_CHAT_ID, analysis, parse_mode="Markdown")
-    except:
-        pass
+Рекомендация: Основной фокус на NVDA, AAPL, TSLA."""
+    bot.send_message(MY_CHAT_ID, analysis, parse_mode="Markdown")
 
 def main_loop():
-    logging.info("🚀 Основной цикл запущен")
+    logging.info("🚀 Бот запущен (скандалы по всему рынку)")
     last_analysis = 0
 
     while True:
-        # Анализ каждые 2 часа
-        if time.time() - last_analysis > 7200:
+        if time.time() - last_analysis > 7200:   # каждые 2 часа
             send_grok_analysis()
             last_analysis = time.time()
 
-        # Новости
         try:
-            resp = requests.get(
-                f"https://finnhub.io/api/v1/news?category=general&token={FINNHUB_KEY}",
-                timeout=15
-            )
-            if resp.status_code == 200:
-                for news in resp.json():
-                    nid = news.get("id")
-                    if nid and nid not in processed_news:
-                        headline = news.get("headline", "")
-                        if any(t in headline for t in WATCHLIST):
-                            msg = f"📰 **{headline}**\n\n{news.get('summary', '')}"
-                            bot.send_message(MY_CHAT_ID, msg, parse_mode="Markdown")
-                        processed_news.append(nid)
-        except Exception as e:
-            logging.error(f"Ошибка: {e}")
+            data = requests.get(f"https://finnhub.io/api/v1/news?category=general&token={FINNHUB_KEY}", timeout=15).json()
+            for news in data:
+                nid = news.get("id")
+                if nid and nid not in processed_news:
+                    headline = news.get("headline", "")
+                    summary = news.get("summary", "")
+                    url = news.get("url", "")
+
+                    # Скандалы по всему рынку
+                    if is_scandal(headline, summary):
+                        msg = f"🚨 **СКАНДАЛ / РИСК**\n\n{headline}\n\n{summary}\n\n🔗 [Источник]({url})"
+                        bot.send_message(MY_CHAT_ID, msg, parse_mode="Markdown")
+                        logging.info("Обнаружен скандал")
+
+                    # Новости по твоим тикерам
+                    elif any(t in headline for t in WATCHLIST):
+                        msg = f"📰 **{headline}**\n\n{summary}\n\n🔗 [Источник]({url})"
+                        bot.send_message(MY_CHAT_ID, msg, parse_mode="Markdown")
+
+                    processed_news.append(nid)
+        except:
+            pass
 
         time.sleep(180)
 
