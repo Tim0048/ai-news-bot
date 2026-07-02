@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -9,10 +10,13 @@ logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-if not TOKEN:
-    logger.error("BOT_TOKEN не найден!")
-else:
+if TOKEN:
     logger.info("✅ Бот запущен успешно!")
+    logger.info("Токен загружен. Бот работает.")
+else:
+    logger.error("❌ BOT_TOKEN не найден!")
 
-# Пока бот просто работает и логирует
-print("Бот работает...")
+# Держим процесс живым
+while True:
+    time.sleep(60)
+    logger.info("Бот всё ещё работает...")
