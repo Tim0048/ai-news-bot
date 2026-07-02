@@ -1,3 +1,4 @@
+
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -17,13 +18,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ====================== ПЕРЕВОД ======================
-# Здесь подключи свой переводчик (Google Translate или другой)
 try:
     from googletrans import Translator
     translator = Translator()
 except ImportError:
     translator = None
-    logger.warning("googletrans не установлен. Перевод будет отключён.")
+    logger.warning("googletrans не установлен. Перевод отключён.")
 
 def translate_text(text: str) -> str:
     if not translator:
@@ -34,7 +34,7 @@ def translate_text(text: str) -> str:
         logger.error(f"Ошибка перевода: {e}")
         return text
 
-# ====================== ЛОГИКА РИСКОВ ======================
+# ====================== ЛОГИКА ОБНАРУЖЕНИЯ РИСКОВ ======================
 RISK_KEYWORDS = [
     "CEO", "смена CEO", "новый CEO", "retire", "resign", "guidance",
     "прогноз", "earnings miss", "weak outlook", "падает на", "обвал",
@@ -52,7 +52,7 @@ def is_linked_risk_event(text: str) -> bool:
 
 # ====================== ОБРАБОТЧИКИ ======================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Бот запущен. Ждём новости и скандалы.")
+    await update.message.reply_text("✅ Бот запущен.\nЖдём новости со скандалами и падениями акций.")
 
 
 async def process_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -69,12 +69,11 @@ async def process_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         
         message = f"""
-🚨 **ПАДЕНИЕ + ПРИЧИНА**
+🚨 **ПАДЕНИЕ АКЦИЙ + ПРИЧИНА**
 
 {translated}
 
-⚠️ Это автоматический перевод. 
-Рекомендуется проверить ключевые факты по оригиналу.
+⚠️ Автоматический перевод. Проверь ключевые факты по оригиналу.
         """
         
         await update.message.reply_text(
@@ -82,9 +81,6 @@ async def process_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-    else:
-        # Можно отключить, если не нужно отвечать на обычные новости
-        pass
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -101,8 +97,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ====================== ЗАПУСК ======================
 def main():
-    # Вставь сюда свой TOKEN
-    TOKEN = "YOUR_BOT_TOKEN_HERE"
+    TOKEN = "YOUR_BOT_TOKEN_HERE"   # ← Замени на свой токен
     
     application = Application.builder().token(TOKEN).build()
     
@@ -110,8 +105,8 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_news))
     application.add_handler(CallbackQueryHandler(button_handler))
     
-    logger.info("Бот запущен...")
-    application.run_polling()
+    logger.info("🤖 Бот успешно запущен...")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == '__main__':
