@@ -1,60 +1,39 @@
+RISK_KEYWORDS = [
+    "CEO", "смена CEO", "новый CEO", "retire", "resign", "guidance", 
+    "прогноз", "earnings miss", "weak outlook", "падает на", "обвал", 
+    "падение на", "рухнул", "скандал", "расследование"
+]
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackQueryHandler
+def is_linked_risk_event(text: str) -> bool:
+    text_lower = text.lower()
+    has_drop = any(word in text_lower for word in ["упал", "падение", "обвал", "drop", "plunge", "fell", "tumble"])
+    has_reason = any(kw in text_lower for kw in RISK_KEYWORDS)
+    return has_drop and has_reason
 
-# ====================== ОБРАБОТКА НОВОСТИ ======================
 
 async def process_news(update: Update, context: ContextTypes.DEFAULT_TYPE):
     news = update.message.text.strip()
-    source_link = context.user_data.get('source_link', '#')
-    original_text = news  # сохраняем оригинал
+    source_link = context.user_data.get('source_link')
     
-    if contains_scandal_keywords(news):
+    if is_linked_risk_event(news):
         translated = translate_scandal(news)
+        context.user_data['original_text'] = news
         
-        # Сохраняем оригинал для кнопки «Перевести обратно»
-        context.user_data['original_text'] = original_text
-        
-        # Кнопки
         keyboard = [
-            [
-                InlineKeyboardButton("🔍 Проверить оригинал", url=source_link),
-                InlineKeyboardButton("🔄 Перевести обратно", callback_data="show_original")
-            ]
+            [InlineKeyboardButton("🔍 Проверить оригинал", url=source_link)],
+            [InlineKeyboardButton("🔄 Перевести обратно", callback_data="show_original")]
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
         
         message = f"""
-🚨 **СКАНДАЛ / РИСК**
+🚨 **ПАДЕНИЕ + ПРИЧИНА**
 
 {translated}
 
-⚠️ **Памятка**: Это автоматический перевод. 
-Рекомендуется проверять ключевые факты по оригиналу.
+⚠️ Автоперевод. Рекомендуется проверить оригинал.
         """
         
         await update.message.reply_text(
             message, 
             parse_mode='Markdown',
-            reply_markup=reply_markup
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-    else:
-        await update.message.reply_text(news)
-
-
-# ====================== ОБРАБОТКА КНОПКИ ======================
-
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()  # убираем "часики"
-    
-    if query.data == "show_original":
-        original = context.user_data.get('original_text', 'Оригинал не найден.')
-        await query.edit_message_text(
-            text=f"**Оригинал (английский):**\n\n{original}",
-            parse_mode='Markdown'
-        )
-
-
-# Не забудь добавить handler в main()
-# application.add_handler(CallbackQueryHandler(button_handler))
