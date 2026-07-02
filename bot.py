@@ -1,3 +1,4 @@
+
 import time
 import requests
 import telebot
@@ -18,7 +19,7 @@ processed_news = deque(maxlen=4000)
 
 logging.basicConfig(level=logging.INFO)
 
-SCANDAL_WORDS = ["scandal", "investigation", "lawsuit", "fine", "fraud", "SEC", "probe", "controversy", "resign", "fired", "recall", "ban", "crisis", "allegation"]
+SCANDAL_WORDS = ["scandal", "fraud", "bribery", "corruption", "indictment", "arrest", "lawsuit against", "SEC charges", "fined $", "resigns amid", "sexual misconduct", "data breach"]
 
 class KeepAlive(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -53,7 +54,7 @@ def main_loop():
     last_analysis = 0
 
     while True:
-        if time.time() - last_analysis > 7200:  # каждые 2 часа
+        if time.time() - last_analysis > 7200:
             send_grok_analysis()
             last_analysis = time.time()
 
