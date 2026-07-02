@@ -1,4 +1,3 @@
-
 import time
 import requests
 import telebot
@@ -12,7 +11,6 @@ TG_TOKEN = "8799537658:AAEpyC45IAgQFxtIMysMfR0JeKDEN38Xgag"
 FINNHUB_KEY = "d92oaehr01qpou37een0d92oaehr01qpou37eeng"
 MY_CHAT_ID = 8560334915
 
-# Твои основные тикеры
 WATCHLIST = ["AAPL", "NVDA", "TSLA", "MSFT", "AMZN", "HOOD", "CCL", "SPCX"]
 
 bot = telebot.TeleBot(TG_TOKEN)
@@ -20,7 +18,7 @@ processed_news = deque(maxlen=4000)
 
 logging.basicConfig(level=logging.INFO)
 
-SCANDAL_WORDS = ["scandal", "investigation", "lawsuit", "fine", "fraud", "SEC", "probe", "controversy", "resign", "fired", "recall", "ban", "crisis", "allegation", "indictment", "settlement"]
+SCANDAL_WORDS = ["scandal", "investigation", "lawsuit", "fine", "fraud", "SEC", "probe", "controversy", "resign", "fired", "recall", "ban", "crisis", "allegation"]
 
 class KeepAlive(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -39,21 +37,23 @@ def is_scandal(headline, summary):
 def send_grok_analysis():
     analysis = """🧠 **Анализ рынка от Grok**
 
-Техсектор держится позитивно.
-• NVDA +4
+Техсектор сейчас в позитивном настроении.
+
+• NVDA +4 (лидер AI)
 • AAPL +3
 • TSLA +3
 • MSFT +2
+• AMZN 0
 
-Рекомендация: Основной фокус на NVDA, AAPL, TSLA."""
+Рекомендация: Основные позиции держать в NVDA, AAPL и TSLA."""
     bot.send_message(MY_CHAT_ID, analysis, parse_mode="Markdown")
 
 def main_loop():
-    logging.info("🚀 Бот запущен (скандалы по всему рынку)")
+    logging.info("🚀 Бот запущен")
     last_analysis = 0
 
     while True:
-        if time.time() - last_analysis > 7200:   # каждые 2 часа
+        if time.time() - last_analysis > 7200:  # каждые 2 часа
             send_grok_analysis()
             last_analysis = time.time()
 
@@ -66,13 +66,9 @@ def main_loop():
                     summary = news.get("summary", "")
                     url = news.get("url", "")
 
-                    # Скандалы по всему рынку
                     if is_scandal(headline, summary):
                         msg = f"🚨 **СКАНДАЛ / РИСК**\n\n{headline}\n\n{summary}\n\n🔗 [Источник]({url})"
                         bot.send_message(MY_CHAT_ID, msg, parse_mode="Markdown")
-                        logging.info("Обнаружен скандал")
-
-                    # Новости по твоим тикерам
                     elif any(t in headline for t in WATCHLIST):
                         msg = f"📰 **{headline}**\n\n{summary}\n\n🔗 [Источник]({url})"
                         bot.send_message(MY_CHAT_ID, msg, parse_mode="Markdown")
